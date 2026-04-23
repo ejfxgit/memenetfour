@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { Hexagon, PlusCircle, Loader2, AlertCircle, ExternalLink, TrendingUp, TrendingDown } from 'lucide-react';
+import { fetchMyTokens } from '../lib/api';
 
 type Submission = {
   id: string;
   name: string;
-  ticker: string;
+  ticker: string | null;
   status: 'approved' | 'rejected';
   ai_score: number;
   ai_verdict: {
@@ -15,7 +15,8 @@ type Submission = {
   } | null;
   submitted_at: string;
   token_id: string | null;
-  profile_image_url: string | null;
+  profile_image_url?: string | null;
+  profile_image?: string | null;
 };
 
 export function MyTokens() {
@@ -41,16 +42,25 @@ export function MyTokens() {
     setLoading(true);
     setError(null);
     setSearched(true);
-    console.log('[MyTokens] username:', normalised);
     try {
-      const res = await axios.get<Submission[]>(`/api/submissions/owner/${encodeURIComponent(normalised)}`);
-      console.log('[MyTokens] result:', res.data);
-      setSubmissions(res.data);
+      const tokens = await fetchMyTokens(normalised);
+      const mapped: Submission[] = tokens.map((t: any) => ({
+        id: t.id,
+        name: t.name ?? 'Unknown',
+        ticker: t.ticker ?? t.symbol ?? null,
+        status: 'approved',
+        ai_score: 100,
+        ai_verdict: null,
+        submitted_at: t.created_at ?? new Date().toISOString(),
+        token_id: t.id ?? null,
+        profile_image_url: t.profile_image_url ?? null,
+        profile_image: t.profile_image ?? null,
+      }));
+      setSubmissions(mapped);
       setUsername(normalised);
       sessionStorage.setItem('my_tokens_username', normalised);
     } catch (e: any) {
-      const err = e.response?.data?.error ?? 'Failed to load tokens.';
-      console.log('[MyTokens] error:', err, e.response);
+      const err = e?.message ?? 'Failed to load tokens.';
       setError(err);
     } finally {
       setLoading(false);
@@ -174,7 +184,7 @@ function TokenCard({ sub }: { sub: Submission }) {
         {/* Avatar + info row */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <img
-            src={sub.profile_image_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${sub.ticker}`}
+            src={sub.profile_image_url || sub.profile_image || `https://api.dicebear.com/7.x/identicon/svg?seed=${sub.ticker || sub.name}`}
             alt={sub.name}
             className="w-12 h-12 rounded-full border border-brand-border flex-shrink-0 object-cover"
           />
@@ -183,7 +193,7 @@ function TokenCard({ sub }: { sub: Submission }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-white font-bold font-['Syne'] text-base leading-tight break-words">{sub.name}</h3>
-              <span className="text-brand-yellow font-mono text-xs">${sub.ticker}</span>
+              <span className="text-brand-yellow font-mono text-xs">${sub.ticker || 'N/A'}</span>
             </div>
             <p className="text-xs text-brand-muted mt-0.5">
               Submitted {new Date(sub.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

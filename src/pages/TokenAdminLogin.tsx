@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore';
 import { useNavigate, Link } from 'react-router-dom';
 import { Loader2, AlertCircle, Lock, User, ChevronRight, Zap } from 'lucide-react';
 import { supabase } from '../lib/db';
+import { login } from '../lib/api';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,15 +42,7 @@ export function TokenAdminLogin() {
 
     try {
       const uname = username.trim().toLowerCase();
-      const { data: adminRow, error: adminError } = await supabase
-        .from('tokens_admin')
-        .select('*')
-        .eq('username', uname)
-        .single();
-
-      if (adminError || !adminRow || adminRow.password_hash !== password) {
-        throw new Error('Invalid login');
-      }
+      await login(uname, password);
 
       const { data: tokens, error: tokenError } = await supabase
         .from('tokens')

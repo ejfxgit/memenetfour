@@ -6,7 +6,7 @@ import { getMarketOverview } from '../../lib/api';
 
 interface MarketOverview {
   total_tokens: number;
-  trending: any[];
+  active_signals: number;
   volume: number;
 }
 
@@ -86,8 +86,8 @@ export function RightPanel() {
             <span className="text-[#e5e7eb] font-mono">{formatPrice(market?.volume ?? 0)}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-brand-muted">Trending Count</span>
-            <span className="text-[#e5e7eb] font-mono">{market?.trending?.length ?? 0}</span>
+            <span className="text-brand-muted">Active Signals</span>
+            <span className="text-[#e5e7eb] font-mono">{market?.active_signals ?? 0}</span>
           </div>
         </div>
       </div>

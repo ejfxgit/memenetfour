@@ -26,6 +26,7 @@ import {
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '../lib/db';
+import { fetchSignals } from '../lib/api';
 import { TokenCard, SignalEvent, TokenSignal } from '../components/feed/TokenCard';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -364,13 +365,7 @@ export function Explore() {
   // ── Fetch events from backend API ─────────────────────────────────────────
   const fetchEvents = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
+      const data = await fetchSignals();
       setRawEvents((data ?? []) as MarketEvent[]);
     } catch (err) {
       console.error('[Explore] events fetch error:', err);

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, AlertCircle, Lock, User, ChevronRight } from 'lucide-react';
-import { login } from '../lib/api';
+import { login } from '../lib/auth';
 
 export function TokenAdminLogin() {
   const [username, setUsername] = useState('');
@@ -22,7 +22,7 @@ export function TokenAdminLogin() {
       localStorage.setItem('token_admin', JSON.stringify(user));
       window.location.href = '/my-tokens';
     } catch {
-      setError('Invalid credentials');
+      setError('Invalid credentials. Please try again.');
     } finally {
       setLoading(false);
     }

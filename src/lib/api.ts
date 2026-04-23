@@ -1,24 +1,5 @@
 import { supabase } from './db';
 
-export async function login(username: string, password: string) {
-  const normalised = username.trim().toLowerCase();
-
-  const { data, error } = await supabase
-    .from('tokens')
-    .select('owner_username, owner_password_hash')
-    .eq('owner_username', normalised)
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data || data.owner_password_hash !== password) {
-    throw new Error('Invalid credentials');
-  }
-
-  return {
-    username: normalised,
-  };
-}
-
 type TokenInput = {
   name: string;
   symbol: string;

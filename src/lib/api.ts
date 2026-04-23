@@ -1,17 +1,22 @@
 import { supabase } from './db';
 
 export async function login(username: string, password: string) {
-  const { data, error } = await supabase
-    .from('tokens_admin')
-    .select('*')
-    .eq('username', username.trim().toLowerCase())
-    .single();
+  const normalised = username.trim().toLowerCase();
 
-  if (error || !data || data.password_hash !== password) {
+  const { data, error } = await supabase
+    .from('tokens')
+    .select('owner_username, owner_password_hash')
+    .eq('owner_username', normalised)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data || data.owner_password_hash !== password) {
     throw new Error('Invalid credentials');
   }
 
-  return data;
+  return {
+    username: normalised,
+  };
 }
 
 type TokenInput = {

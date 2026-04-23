@@ -1,16 +1,36 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
 import { PostCard } from '../components/feed/PostCard';
 import { CommentThread } from '../components/post/CommentThread';
 import { ArrowLeft } from 'lucide-react';
+import { supabase } from '../lib/db';
 
 export function PostDetail() {
   const { id } = useParams();
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
-    axios.get(`/api/posts/${id}`).then(res => setData(res.data)).catch(() => {});
+    const fetchPost = async () => {
+      if (!id) return;
+
+      const { data: post, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error || !post) return;
+
+      const { data: replies } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('reply_to', id)
+        .order('timestamp', { ascending: true });
+
+      setData({ ...post, replies: replies ?? [] });
+    };
+
+    fetchPost();
   }, [id]);
 
   if (!data) return <div className="p-8 text-center text-white">Loading Thread...</div>;

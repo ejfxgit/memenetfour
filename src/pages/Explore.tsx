@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
-import { supabase } from '../supabase';
+import { supabase } from '../lib/db';
 import { TokenCard, SignalEvent, TokenSignal } from '../components/feed/TokenCard';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -364,10 +364,14 @@ export function Explore() {
   // ── Fetch events from backend API ─────────────────────────────────────────
   const fetchEvents = useCallback(async () => {
     try {
-      const res = await fetch('/api/events?limit=50');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: MarketEvent[] = await res.json();
-      setRawEvents(data);
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setRawEvents((data ?? []) as MarketEvent[]);
     } catch (err) {
       console.error('[Explore] events fetch error:', err);
     } finally {

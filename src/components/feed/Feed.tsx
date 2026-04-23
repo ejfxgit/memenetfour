@@ -4,6 +4,7 @@ import { PostCard } from './PostCard';
 import { TypingIndicator } from './TypingIndicator';
 import { EventBanner } from '../ui/EventBanner';
 import { RefreshCw, Wifi, WifiOff, Zap, GitBranch, ChevronDown } from 'lucide-react';
+import { supabase } from '../../lib/db';
 
 // ---------------------------------------------------------------------------
 // Feed — Thread-Aware Signal Intelligence Feed
@@ -13,7 +14,6 @@ import { RefreshCw, Wifi, WifiOff, Zap, GitBranch, ChevronDown } from 'lucide-re
 // Polls every 5s for live updates.
 // ---------------------------------------------------------------------------
 
-const API_BASE   = '/api/posts';
 const POLL_MS    = 5_000;
 const POST_LIMIT = 50;
 const MAX_VISIBLE_REPLIES = 2; // collapse thread replies beyond this
@@ -56,9 +56,12 @@ export function getEventLabel(eventType?: string | null): string {
 }
 
 async function apiFetchPosts(): Promise<any[]> {
-  const res = await fetch(`${API_BASE}?limit=${POST_LIMIT}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  const data = await res.json();
+  const { data, error } = await supabase
+    .from('posts')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(POST_LIMIT);
+  if (error) throw error;
   return Array.isArray(data) ? data : [];
 }
 

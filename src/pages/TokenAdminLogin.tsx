@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useStore } from '../store/useStore';
 import { useNavigate, Link } from 'react-router-dom';
 import { Loader2, AlertCircle, Lock, User, ChevronRight, Zap } from 'lucide-react';
+import { supabase } from '../lib/db';
 
 // ---------------------------------------------------------------------------
-// Types — locked contract from POST /api/token/login
+// Types
 // ---------------------------------------------------------------------------
 
 type TokenOption = {
@@ -14,12 +14,6 @@ type TokenOption = {
   name: string;
   ticker: string;
   profile_image: string | null;
-};
-
-type LoginResponse = {
-  success: boolean;
-  username: string;
-  tokens: TokenOption[];
 };
 
 // ---------------------------------------------------------------------------
@@ -46,12 +40,25 @@ export function TokenAdminLogin() {
     setLoading(true);
 
     try {
-      const res = await axios.post<LoginResponse>('/api/token/login', {
-        username: username.trim(),
-        password,
-      });
+      const uname = username.trim().toLowerCase();
+      const { data: adminRow, error: adminError } = await supabase
+        .from('tokens_admin')
+        .select('*')
+        .eq('username', uname)
+        .single();
 
-      const { tokens, username: uname } = res.data;
+      if (adminError || !adminRow || adminRow.password_hash !== password) {
+        throw new Error('Invalid login');
+      }
+
+      const { data: tokens, error: tokenError } = await supabase
+        .from('tokens')
+        .select('id, name, ticker, profile_image')
+        .ilike('owner_username', uname);
+
+      if (tokenError) {
+        throw tokenError;
+      }
 
       if (!tokens || tokens.length === 0) {
         setError('No tokens found for this account.');
@@ -59,17 +66,20 @@ export function TokenAdminLogin() {
       }
 
       setLoginUsername(uname);
+      const tokenOptions = tokens.map((token) => ({
+        ...token,
+        session_token: token.id,
+      }));
 
-      if (tokens.length === 1) {
+      if (tokenOptions.length === 1) {
         // Single token — activate session and go straight to dashboard
-        activateSession(tokens[0], uname);
+        activateSession(tokenOptions[0], uname);
       } else {
         // Multiple tokens — show picker
-        setTokenOptions(tokens);
+        setTokenOptions(tokenOptions);
       }
-    } catch (err: any) {
-      const msg = err.response?.data?.error ?? 'Invalid credentials. Please try again.';
-      setError(msg);
+    } catch {
+      setError('Invalid credentials. Please try again.');
     } finally {
       setLoading(false);
     }

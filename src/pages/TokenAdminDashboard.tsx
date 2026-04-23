@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import axios from 'axios';
 import { useParams, Navigate, useNavigate, Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
+import { supabase } from '../lib/db';
 import {
   Loader2, AlertCircle, Save, LogOut, Trash2, ExternalLink,
   Power, Activity, BarChart2, TrendingUp, Edit3, Check,
@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
-// Types — matches GET /api/token/me response contract
+// Types
 // ---------------------------------------------------------------------------
 
 type TokenData = {
@@ -40,14 +40,6 @@ type TokenData = {
 };
 
 const MOODS = ['bullish', 'bearish', 'funny', 'neutral'] as const;
-
-// ---------------------------------------------------------------------------
-// Helper
-// ---------------------------------------------------------------------------
-
-function authHeaders(sessionToken: string) {
-  return { headers: { 'x-session-token': sessionToken } };
-}
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -141,11 +133,16 @@ export function TokenAdminDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get<{ success: boolean; token: any }>('/api/token/me', authHeaders(sessionToken!));
+      const { data: raw, error: fetchError } = await supabase
+        .from('tokens')
+        .select('*')
+        .eq('id', sessionTokenDbId!)
+        .single();
 
-      // Backend returns { success: true, token: <raw DB row> }
-      // Map raw DB column names → aliased TokenData fields
-      const raw = res.data.token;
+      if (fetchError || !raw) {
+        throw new Error(fetchError?.message ?? 'Token not found');
+      }
+
       const data: TokenData = {
         id:                raw.id,
         name:              raw.name,
@@ -182,16 +179,11 @@ export function TokenAdminDashboard() {
       setDailyPostLimit(data.daily_post_limit ?? 20);
       setMood(data.mood                      ?? 'neutral');
     } catch (err: any) {
-      if (err.response?.status === 401) {
-        clearSession();
-        navigate('/token-admin-login');
-        return;
-      }
-      setError(err.response?.data?.error ?? 'Failed to load token data.');
+      setError(err?.message ?? 'Failed to load token data.');
     } finally {
       setLoading(false);
     }
-  }, [sessionToken, clearSession, navigate]);
+  }, [sessionTokenDbId]);
 
   useEffect(() => { loadToken(); }, [loadToken]);
 
@@ -202,18 +194,21 @@ export function TokenAdminDashboard() {
     setSaveMsg(null);
     setSaveError(null);
     try {
-      await axios.post('/api/token/update', {
-        bio:               bio.trim()          || null,
-        profile_image_url: profileImage.trim() || null,
-        banner_image_url:  bannerImage.trim()  || null,
-        twitter_url:       twitter.trim()      || null,
-        website_url:       website.trim()      || null,
-      }, authHeaders(sessionToken!));
+      const { error: updateError } = await supabase
+        .from('tokens')
+        .update({
+          bio: bio.trim() || null,
+          profile_image: profileImage.trim() || null,
+          banner_image: bannerImage.trim() || null,
+          twitter_url: twitter.trim() || null,
+          website: website.trim() || null,
+        })
+        .eq('id', sessionTokenDbId!);
+      if (updateError) throw updateError;
       setSaveMsg('Profile saved!');
       await loadToken();
     } catch (err: any) {
-      if (err.response?.status === 401) { clearSession(); navigate('/token-admin-login'); return; }
-      setSaveError(err.response?.data?.error ?? 'Save failed.');
+      setSaveError(err?.message ?? 'Save failed.');
     } finally {
       setSaving(false);
     }
@@ -226,16 +221,19 @@ export function TokenAdminDashboard() {
     setSaveMsg(null);
     setSaveError(null);
     try {
-      await axios.post('/api/token/update', {
-        is_active:        isActive,
-        daily_post_limit: dailyPostLimit,
-        mood,
-      }, authHeaders(sessionToken!));
+      const { error: updateError } = await supabase
+        .from('tokens')
+        .update({
+          is_active: isActive,
+          daily_post_limit: dailyPostLimit,
+          mood,
+        })
+        .eq('id', sessionTokenDbId!);
+      if (updateError) throw updateError;
       setSaveMsg('AI settings saved!');
       await loadToken();
     } catch (err: any) {
-      if (err.response?.status === 401) { clearSession(); navigate('/token-admin-login'); return; }
-      setSaveError(err.response?.data?.error ?? 'Save failed.');
+      setSaveError(err?.message ?? 'Save failed.');
     } finally {
       setSaving(false);
     }
@@ -244,11 +242,6 @@ export function TokenAdminDashboard() {
   // ── Logout ───────────────────────────────────────────────────────────────
 
   const handleLogout = async () => {
-    try {
-      await axios.post('/api/token/logout', {}, authHeaders(sessionToken!));
-    } catch {
-      // ignore — clear client session regardless
-    }
     clearSession();
     navigate('/token-admin-login');
   };
@@ -257,9 +250,16 @@ export function TokenAdminDashboard() {
 
   const handleDelete = async () => {
     try {
-      await axios.post('/api/token/delete', {}, authHeaders(sessionToken!));
+      const { error: deleteError } = await supabase
+        .from('tokens')
+        .update({
+          is_deleted: true,
+          is_active: false,
+        })
+        .eq('id', sessionTokenDbId!);
+      if (deleteError) throw deleteError;
     } catch (err: any) {
-      setSaveError(err.response?.data?.error ?? 'Delete failed.');
+      setSaveError(err?.message ?? 'Delete failed.');
       setDeleteConfirm(false);
       return;
     }

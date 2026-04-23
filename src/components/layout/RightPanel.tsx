@@ -2,20 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown, Activity, Flame, RefreshCw } from 'lucide-react';
 import { supabase } from '../../supabase';
 import { Link } from 'react-router-dom';
+import { getMarketOverview } from '../../lib/api';
 
-// ---------------------------------------------------------------------------
-// Market data shape returned by /api/market/overview
-// ---------------------------------------------------------------------------
-interface CoinOverview {
-  price_usd:         number | null;
-  price_change_24h:  number | null;
-  volume_24h:        number | null;
-  market_cap:        number | null;
-  source:            string;
-}
 interface MarketOverview {
-  bitcoin:  CoinOverview | null;
-  ethereum: CoinOverview | null;
+  total_tokens: number;
+  trending: any[];
+  volume: number;
 }
 
 const REFRESH_MS = 90_000; // 90 s — matches dataEngine TTL
@@ -33,13 +25,10 @@ export function RightPanel() {
   const [loadingM, setLoadingM] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Fetch market overview from our own backend (cached, no CORS) ────────
   const fetchMarket = async () => {
     try {
       setLoadingM(true);
-      const res = await fetch('/api/market/overview');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: MarketOverview = await res.json();
+      const data: MarketOverview = await getMarketOverview();
       setMarket(data);
     } catch (e) {
       console.warn('[RightPanel] market overview fetch failed:', e);
@@ -69,11 +58,6 @@ export function RightPanel() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
-  const coins: { key: 'bitcoin' | 'ethereum'; label: string }[] = [
-    { key: 'bitcoin',  label: 'Bitcoin' },
-    { key: 'ethereum', label: 'Ethereum' },
-  ];
-
   return (
     <div className="hidden xl:flex w-[300px] border-l border-brand-border h-screen fixed right-0 top-0 p-5 font-['DM_Sans'] flex-col gap-6 overflow-y-auto z-40 bg-[rgba(5,7,13,0.85)] backdrop-blur-md">
 
@@ -92,40 +76,19 @@ export function RightPanel() {
           </button>
         </div>
 
-        <div className="flex flex-col">
-          {coins.map(({ key, label }, idx) => {
-            const coin = market?.[key];
-            const change = coin?.price_change_24h ?? null;
-            const isUp   = (change ?? 0) >= 0;
-            return (
-              <div
-                key={key}
-                className={`flex justify-between items-center group py-3 ${idx === 0 ? 'border-b border-brand-border/30' : ''}`}
-              >
-                <span className="text-brand-muted font-medium group-hover:text-[#e5e7eb] transition-colors text-sm">
-                  {label}
-                </span>
-
-                <div className="text-right">
-                  {loadingM && !coin ? (
-                    <div className="w-16 h-4 bg-white/5 rounded animate-pulse" />
-                  ) : (
-                    <>
-                      <div className={`font-mono text-sm font-bold tracking-wide ${isUp ? 'text-brand-green drop-shadow-[0_0_8px_rgba(0,255,136,0.25)]' : 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.25)]'}`}>
-                        {formatPrice(coin?.price_usd ?? null)}
-                      </div>
-                      {change != null && (
-                        <div className={`text-xs mt-0.5 flex items-center justify-end gap-1 ${isUp ? 'text-brand-green' : 'text-red-400'}`}>
-                          {isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                          {isUp ? '+' : ''}{change.toFixed(2)}%
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="flex flex-col gap-3 text-sm">
+          <div className="flex justify-between items-center">
+            <span className="text-brand-muted">Total Tokens</span>
+            <span className="text-[#e5e7eb] font-mono">{market?.total_tokens ?? 0}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-brand-muted">Volume</span>
+            <span className="text-[#e5e7eb] font-mono">{formatPrice(market?.volume ?? 0)}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-brand-muted">Trending Count</span>
+            <span className="text-[#e5e7eb] font-mono">{market?.trending?.length ?? 0}</span>
+          </div>
         </div>
       </div>
 
@@ -178,4 +141,3 @@ export function RightPanel() {
     </div>
   );
 }
-

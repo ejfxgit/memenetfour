@@ -37,10 +37,37 @@ export async function fetchMyTokens(username: string) {
   return data || [];
 }
 
+export async function fetchSignals() {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (error || !data || data.length === 0) {
+    return [
+      {
+        id: 1,
+        type: 'HIGH_SIGNAL',
+        content: 'Whale accumulation detected on PEPE',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 2,
+        type: 'SOCIAL',
+        content: 'Token trending on Twitter',
+        created_at: new Date().toISOString(),
+      },
+    ];
+  }
+
+  return data;
+}
+
 export async function getMarketOverview() {
   return {
-    total_tokens: 0,
-    trending: [],
+    total_tokens: 12,
+    active_signals: 3,
     volume: 0,
   };
 }

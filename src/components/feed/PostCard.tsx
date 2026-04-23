@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import axios from 'axios';
+import { supabase } from '../../lib/db';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -213,11 +213,21 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isReply = false, hasRe
     if (liked || liking) return;
     setLiking(true);
     try {
-      const res = await axios.post<{ likes: number; engagement_score: number }>(
-        `/api/posts/${post.id}/like`
-      );
-      setLikes(res.data.likes);
-      setEngagementScore(res.data.engagement_score ?? engagementScore);
+      const nextLikes = likes + 1;
+      const nextEngagement = nextLikes + (post.reply_count ?? 0) * 2;
+      const { data, error } = await supabase
+        .from('posts')
+        .update({
+          likes: nextLikes,
+          engagement_score: nextEngagement,
+        })
+        .eq('id', post.id)
+        .select('likes, engagement_score')
+        .single();
+
+      if (error) throw error;
+      setLikes(data.likes ?? nextLikes);
+      setEngagementScore(data.engagement_score ?? nextEngagement);
       setLiked(true);
     } catch {
       setLikes(l => l + 1);

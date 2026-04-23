@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { supabase } from '../lib/db';
 
 // ---------------------------------------------------------------------------
-// useLivePrice — fetches live price for a single token from /api/tokens/:id/price
+// useLivePrice — fetches latest token price fields from Supabase.
 //
 // The backend endpoint tries:
 //   1. CoinGecko (via coingecko_id or coingecko_url)
@@ -45,9 +46,20 @@ export function useLivePrice(
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/tokens/${tokenId}/price`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json: LivePriceData = await res.json();
+      const { data: tokenRow, error: tokenError } = await supabase
+        .from('tokens')
+        .select('price_usd, price_change_24h, volume_24h, market_cap')
+        .eq('id', tokenId)
+        .single();
+
+      if (tokenError || !tokenRow) throw tokenError ?? new Error('Token not found');
+      const json: LivePriceData = {
+        source: 'db_cache',
+        price_usd: tokenRow.price_usd ?? null,
+        price_change_24h: tokenRow.price_change_24h ?? null,
+        volume_24h: tokenRow.volume_24h ?? null,
+        market_cap: tokenRow.market_cap ?? null,
+      };
 
       // Validation: reject price == null or price == 0
       if (!json.price_usd || json.price_usd === 0) {

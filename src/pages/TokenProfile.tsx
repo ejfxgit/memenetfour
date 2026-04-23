@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
 import { TrendingUp, TrendingDown, BarChart2, DollarSign } from 'lucide-react';
 import { TokenBanner } from '../components/token/TokenBanner';
 import { TokenStats } from '../components/token/TokenStats';
 import { PostCard } from '../components/feed/PostCard';
 import { useLivePrice, formatLivePrice, formatVolume } from '../hooks/useLivePrice';
+import { supabase } from '../lib/db';
 
 export function TokenProfile() {
   const { id } = useParams();
@@ -15,8 +15,19 @@ export function TokenProfile() {
   const { data: livePrice, loading: priceLoading } = useLivePrice(id);
 
   useEffect(() => {
-    axios.get(`/api/tokens/${id}`).then(res => setToken(res.data)).catch(() => {});
-    axios.get(`/api/posts?token_id=${id}`).then(res => setPosts(res.data)).catch(() => {});
+    const fetchTokenProfile = async () => {
+      if (!id) return;
+
+      const [{ data: tokenData }, { data: postData }] = await Promise.all([
+        supabase.from('tokens').select('*').eq('id', id).single(),
+        supabase.from('posts').select('*').eq('token_id', id).order('timestamp', { ascending: false }),
+      ]);
+
+      setToken(tokenData ?? null);
+      setPosts(postData ?? []);
+    };
+
+    fetchTokenProfile();
   }, [id]);
 
   if (!token) return <div className="p-8 text-center text-white">Loading Token...</div>;

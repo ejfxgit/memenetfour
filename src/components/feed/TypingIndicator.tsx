@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import { supabase } from '../../lib/db';
 
 // ---------------------------------------------------------------------------
 // TypingIndicator — shows which tokens are currently "typing" (is_typing=true)
-// Fetches from backend API only — NO direct Supabase access.
+// Fetches directly from Supabase.
 // ---------------------------------------------------------------------------
 
 interface Token { id: string; name: string; }
@@ -15,10 +16,13 @@ export function TypingIndicator() {
 
     async function fetchTyping() {
       try {
-        const res = await fetch('/api/tokens?typing=true');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (isMounted && Array.isArray(data)) {
+        const { data, error } = await supabase
+          .from('tokens')
+          .select('id, name, is_typing')
+          .eq('is_typing', true)
+          .limit(3);
+
+        if (!error && isMounted && Array.isArray(data)) {
           setTyping(data.filter((t: any) => t.is_typing).slice(0, 3));
         }
       } catch {

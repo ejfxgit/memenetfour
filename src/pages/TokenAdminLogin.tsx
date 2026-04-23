@@ -1,32 +1,150 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Loader2, AlertCircle, Lock, User, ChevronRight } from 'lucide-react';
+import { useStore } from '../store/useStore';
+import { useNavigate, Link } from 'react-router-dom';
+import { Loader2, AlertCircle, Lock, User, ChevronRight, Zap } from 'lucide-react';
+import { supabase } from '../lib/db';
 import { login } from '../lib/api';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type TokenOption = {
+  session_token: string;
+  id: string;
+  name: string;
+  ticker: string;
+  profile_image: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// TokenAdminLogin
+// ---------------------------------------------------------------------------
 
 export function TokenAdminLogin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [error, setError]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [tokenOptions, setTokenOptions] = useState<TokenOption[] | null>(null);
+  const [loginUsername, setLoginUsername] = useState('');
+
+  const setSession = useStore((s) => s.setSession);
+  const navigate   = useNavigate();
+
+  // ── Step 1: authenticate ─────────────────────────────────────────────────
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) return;
-
     setError('');
     setLoading(true);
 
     try {
-      const user = await login(username, password);
+      const uname = username.trim().toLowerCase();
+      await login(uname, password);
 
-      localStorage.setItem('token_admin', JSON.stringify(user));
-      window.location.href = '/my-tokens';
+      const { data: tokens, error: tokenError } = await supabase
+        .from('tokens')
+        .select('id, name, ticker, profile_image')
+        .ilike('owner_username', uname);
+
+      if (tokenError) {
+        throw tokenError;
+      }
+
+      if (!tokens || tokens.length === 0) {
+        setError('No tokens found for this account.');
+        return;
+      }
+
+      setLoginUsername(uname);
+      const tokenOptions = tokens.map((token) => ({
+        ...token,
+        session_token: token.id,
+      }));
+
+      if (tokenOptions.length === 1) {
+        // Single token — activate session and go straight to dashboard
+        activateSession(tokenOptions[0], uname);
+      } else {
+        // Multiple tokens — show picker
+        setTokenOptions(tokenOptions);
+      }
     } catch {
-      setError('Invalid credentials');
+      setError('Invalid credentials. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  // ── Step 2 (multi-token): user picks a token ─────────────────────────────
+
+  const activateSession = (token: TokenOption, uname: string) => {
+    setSession({
+      sessionToken:       token.session_token,   // x-session-token header value
+      sessionTokenDbId:   token.id,              // UUID for navigation
+      sessionUsername:    uname,
+      sessionTokenName:   token.name,
+      sessionTokenTicker: token.ticker,
+    });
+    navigate(`/token-admin/${token.id}`);
+  };
+
+  // ── Multi-token picker screen ─────────────────────────────────────────────
+
+  if (tokenOptions) {
+    return (
+      <div className="min-h-screen bg-brand-bg flex items-center justify-center p-4">
+        <div className="w-full max-w-[440px] animate-[slideIn_280ms_ease-out]">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 rounded-2xl bg-brand-yellow/15 border border-brand-yellow/30
+              flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(250,204,21,0.2)]">
+              <Zap size={24} className="text-brand-yellow" />
+            </div>
+            <h1 className="text-2xl font-['Syne'] font-bold text-white uppercase tracking-wide mb-1">
+              Select Token
+            </h1>
+            <p className="text-brand-muted text-sm">
+              Multiple tokens found for <span className="text-white font-semibold">{loginUsername}</span>
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {tokenOptions.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => activateSession(t, loginUsername)}
+                className="card-premium p-4 flex items-center gap-4 hover:border-brand-yellow/60
+                  transition-all group text-left"
+              >
+                <img
+                  src={t.profile_image || `https://api.dicebear.com/7.x/identicon/svg?seed=${t.ticker}`}
+                  alt={t.name}
+                  className="w-11 h-11 rounded-full border border-brand-border object-cover flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-white font-['Syne'] leading-tight">{t.name}</div>
+                  <div className="text-brand-yellow font-mono text-xs">${t.ticker}</div>
+                </div>
+                <ChevronRight size={16} className="text-brand-muted group-hover:text-brand-yellow transition-colors flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setTokenOptions(null)}
+            className="w-full mt-4 text-xs text-brand-muted hover:text-white transition-colors py-2"
+          >
+            ← Back to login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Login form ─────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-brand-bg flex items-center justify-center p-4">
@@ -38,6 +156,7 @@ export function TokenAdminLogin() {
       </div>
 
       <div className="w-full max-w-[420px] animate-[slideIn_280ms_ease-out] relative z-10">
+
         {/* Logo / Icon */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-yellow/20 to-brand-green/10
@@ -54,6 +173,7 @@ export function TokenAdminLogin() {
         {/* Card */}
         <div className="card-premium p-6 sm:p-8">
           <form onSubmit={handleLogin} className="flex flex-col gap-5">
+
             {/* Username */}
             <div>
               <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wider mb-2">

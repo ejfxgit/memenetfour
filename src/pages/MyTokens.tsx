@@ -20,13 +20,6 @@ type Submission = {
 };
 
 export function MyTokens() {
-  const admin = JSON.parse(localStorage.getItem('token_admin') || 'null');
-
-  if (!admin) {
-    window.location.href = '/token-admin-login';
-    return null;
-  }
-
   const [username, setUsername] = useState('');
   const [inputVal, setInputVal] = useState('');
   const [submissions, setSubmissions] = useState<Submission[]>([]);

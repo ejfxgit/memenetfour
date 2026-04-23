@@ -77,6 +77,12 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }
 
 export function TokenAdminDashboard() {
   const { tokenId } = useParams<{ tokenId: string }>();
+  const admin = JSON.parse(localStorage.getItem('token_admin') || 'null');
+
+  if (!admin) {
+    window.location.href = '/token-admin-login';
+    return null;
+  }
 
   // Session from store — DO NOT read token_id from URL for auth
   const sessionToken      = useStore((s) => s.sessionToken);
